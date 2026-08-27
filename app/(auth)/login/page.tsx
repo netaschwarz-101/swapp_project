@@ -29,6 +29,7 @@ function LoginForm() {
   const [state, formAction] = useActionState(login, initialState);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
+  const confirmError = searchParams.get("error") === "confirmation_failed";
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm items-center">
@@ -44,6 +45,15 @@ function LoginForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {confirmError && (
+            <p
+              className="text-destructive mb-4 text-sm"
+              role="alert"
+            >
+              That confirmation link is invalid or expired. Try logging in,
+              or sign up again to get a new one.
+            </p>
+          )}
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="next" value={next} />
             <div className="flex flex-col gap-2">

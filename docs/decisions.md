@@ -62,3 +62,23 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `tsc --noEmit`, `eslint`, and a full `next build` (fonts stubbed for this sandbox's network policy, same as Phase 1) all pass with all 8 routes compiling.
 
 **Deliverable:** item CRUD works end-to-end in code; needs a live Supabase project + the two new migrations applied to actually exercise it.
+
+---
+
+## Post-deploy fix — email confirmation redirect (2026-08-27)
+
+**Problem:** after deploying to Vercel and signing up on the live site, the confirmation email linked to `localhost:3000/?code=...` — Safari couldn't connect, since nothing is listening on `localhost` on the phone/laptop making the request, and even the right host had no code to consume that link.
+
+**Two separate bugs, both needed:**
+
+1. **Supabase project's Site URL was still the default `http://localhost:3000`.** This value is what Supabase's email templates use to build the confirmation link — it's a dashboard setting (Authentication → URL Configuration), not something in this repo, so no amount of app code would have fixed it. Changed to the production Vercel URL, and that URL was added to the Redirect URLs allowlist alongside it.
+
+2. **The app had no route to actually consume a confirmation link.** Added `app/auth/confirm/route.ts`, a Route Handler that reads `token_hash` + `type` from the URL and calls `supabase.auth.verifyOtp(...)` to exchange them for a real session, then redirects to `next` (default `/`) on success or to `/login?error=confirmation_failed` on failure (login page now shows a message for that case).
+
+**`verifyOtp` + `token_hash`, not `exchangeCodeForSession` + `code`.** Supabase actually supports two different confirmation mechanisms: PKCE (`code` param, `exchangeCodeForSession`) and OTP-style (`token_hash`+`type` param, `verifyOtp`). The `?code=` the user saw was Supabase's *default* email template, which points at Supabase's own hosted `/auth/v1/verify` endpoint and only hands back a `code` after an extra server-side hop. The fix implemented here instead points the email template directly at our own `/auth/confirm` route with `token_hash`/`type` — this is the pattern Supabase documents for server-rendered apps, it keeps the whole flow on our domain instead of bouncing through Supabase's server first, and it doesn't depend on that extra hop's `redirect_to` matching correctly. **Action item for you:** in the Supabase dashboard, Authentication → Email Templates → Confirm signup, the "Confirmation URL" needs to read `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/` instead of the default `{{ .ConfirmationURL }}`.
+
+**Verification:** `eslint` clean; full `next build` (fonts stubbed for this sandbox's network policy, reverted after) compiles all 9 routes including the new `/auth/confirm`.
+
+**Follow-up: the email-template edit above isn't actually possible on the free tier.** Supabase's Email Templates screen shows "Set up custom SMTP to edit templates" — with the built-in mailer (fine for a course project's volume), the template body is locked to Supabase's default, `{{ .ConfirmationURL }}` and all. Rather than make SMTP setup (a third-party mail provider, API keys, DNS records) a prerequisite for a working signup flow, switched approach: `actions/auth.ts`'s `signup()` now passes `emailRedirectTo: `${origin}/auth/confirm`` to `supabase.auth.signUp()`, read from the request's own `origin` header (via `next/headers`) so it's correct on every deployment without an env var. This makes Supabase's *default*, unedited template redirect to our route instead of the site root — the browser still bounces through Supabase's hosted `/auth/v1/verify` first (that's what turns the emailed token into a `code` param), but it lands on `/auth/confirm?code=...` either way. `app/auth/confirm/route.ts` now handles `code` via `exchangeCodeForSession` as the primary path, keeping `token_hash`/`verifyOtp` as a fallback for a custom-template link if SMTP is ever set up later. Net effect: the Supabase dashboard needs Site URL + Redirect URLs fixed (still required — see above), but the Email Templates screen doesn't need to be touched at all.
+
+**Verification (re-run after this change):** `eslint` clean; full `next build` again compiles all 9 routes cleanly.

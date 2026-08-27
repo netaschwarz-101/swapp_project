@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema, signupSchema } from "@/lib/validation/profile";
 
@@ -27,11 +28,24 @@ export async function signup(
   const { email, password, username, city } = parsed.data;
 
   // 2. mutation — profiles row is created by a DB trigger reading this metadata
+  //
+  // emailRedirectTo tells Supabase where to send the browser after the
+  // confirmation link is clicked and verified — pointed at our own
+  // route handler (app/auth/confirm/route.ts) so it lands with a `code`
+  // param we can exchange for a session, instead of Supabase's default
+  // of redirecting to the bare Site URL. Read from the request's own
+  // `origin` header rather than an env var so this is correct on every
+  // deployment (preview URLs, production) without extra configuration.
+  // Must be on the Supabase project's Redirect URLs allowlist.
+  const origin = (await headers()).get("origin");
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { username, city } },
+    options: {
+      data: { username, city },
+      emailRedirectTo: origin ? `${origin}/auth/confirm` : undefined,
+    },
   });
 
   if (error) {
