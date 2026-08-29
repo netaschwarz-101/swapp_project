@@ -166,11 +166,15 @@ export async function acceptTrade(tradeId: string) {
     throw new Error("This trade can no longer be accepted.");
   }
 
-  const { error } = await supabase
-    .from("trades")
-    .update({ status: "accepted_by_responder" })
-    .eq("id", tradeId);
-  if (error) throw new Error("Couldn't accept the trade.");
+  // Atomic: marks this trade accepted, cancels every other still-pending
+  // trade competing for the same item(s), and refuses outright if one of
+  // those items is already committed to a different accepted trade — see
+  // accept_trade() in
+  // supabase/migrations/0008_trade_accept_conflict_resolution.sql.
+  const { error } = await supabase.rpc("accept_trade", {
+    p_trade_id: tradeId,
+  });
+  if (error) throw new Error(error.message || "Couldn't accept the trade.");
 
   revalidatePath("/trades");
   revalidatePath(`/trades/${tradeId}`);

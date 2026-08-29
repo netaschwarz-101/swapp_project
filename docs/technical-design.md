@@ -124,14 +124,21 @@ Guards (enforced in `lib/trade-machine.ts`, in each Server Action, and — for c
 - Either participant may withdraw (cancel) an `accepted_by_responder` trade.
 - No transition is legal from any terminal state (`completed`, `declined`, `cancelled`).
 
+**`accept_trade(trade_id uuid)`** — a `SECURITY DEFINER` Postgres function, called via RPC from the "accept" Server Action, wrapping in one transaction (added after Phase 4 shipped — see `docs/decisions.md`, "trade accept conflict resolution"; originally conflict resolution was deferred entirely to `complete_trade`, below, which left a live gap between one offer being accepted and it being completed where a competing offer for the same item still looked fully alive):
+
+1. Verify the trade is `pending` and the caller is its responder.
+2. Refuse (raise, no changes made) if any item in this trade already belongs to a *different* trade that's already `accepted_by_responder` — that trade's initiator has a real commitment; this accept can't silently override it.
+3. Set this trade's `status='accepted_by_responder'`.
+4. Find every _other_ trade still `pending` that references any of the same items (via `trade_items`), and set those to `cancelled` — the responder just chose this trade over them, so they're moot immediately, not just once this trade is later completed.
+
 **`complete_trade(trade_id uuid)`** — a `SECURITY DEFINER` Postgres function, called via RPC from the "confirm complete" Server Action, wrapping in one transaction:
 
 1. Verify the trade is `accepted_by_responder` and the caller is its initiator (defense in depth — the Server Action already checked this).
 2. Set `status='traded'` on every item referenced by this trade's `trade_items`.
 3. Set this trade's `status='completed'`.
-4. Find every _other_ trade still in `pending` or `accepted_by_responder` that references any of those same items (via `trade_items`), and set those to `cancelled` — they're negotiating over items that no longer exist to trade.
+4. Find every _other_ trade still in `pending` or `accepted_by_responder` that references any of those same items (via `trade_items`), and set those to `cancelled` — they're negotiating over items that no longer exist to trade. In practice, `accept_trade`'s own conflict resolution (above) means there's rarely anything left here by the time a trade completes; this step stays as the final backstop for any leftover pending trades on items involved in the accepted trade in ways `accept_trade` didn't already resolve (e.g. an item offered, not requested, in another pending trade).
 
-Doing this as one DB function/transaction, rather than several separate Server Action calls, is what makes step 4 safe: if the app crashed between "mark items traded" and "cancel conflicting trades," the database would be left in an inconsistent state (traded items still visibly up for offer). A single transaction makes that impossible.
+Doing each of these as one DB function/transaction, rather than several separate Server Action calls, is what makes their respective last steps safe: if the app crashed partway through, the database would be left in an inconsistent state (an accepted trade with a still-live competing offer; traded items still visibly up for offer). A single transaction makes that impossible.
 
 ### 3.2 Indexes
 

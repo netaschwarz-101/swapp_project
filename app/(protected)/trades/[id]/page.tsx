@@ -1,3 +1,4 @@
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ItemCard, type ItemCardData } from "@/components/item-card";
@@ -76,28 +77,45 @@ export default async function TradeDetailPage({
 
       <TradeActions tradeId={trade.id} status={trade.status} role={role} />
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium">
-            Offered (by {trade.initiator?.username ?? "initiator"})
-          </h2>
+      <div className="grid items-stretch gap-4 sm:grid-cols-[1fr_auto_1fr] sm:gap-8">
+        <section className="bg-muted/40 flex flex-col gap-3 rounded-xl border p-4">
+          <div>
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Offered
+            </p>
+            <h2 className="text-lg font-semibold">
+              by {trade.initiator?.username ?? "initiator"}
+            </h2>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {offered.map((ti) => (
               <ItemCard key={ti.item.id} item={ti.item} />
             ))}
           </div>
+        </section>
+
+        <div className="flex items-center justify-center">
+          <div className="bg-background text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-full border">
+            <ArrowDown className="size-4 sm:hidden" />
+            <ArrowRight className="hidden size-4 sm:block" />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium">
-            Requested (from {trade.responder?.username ?? "responder"})
-          </h2>
+        <section className="flex flex-col gap-3 rounded-xl border p-4">
+          <div>
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Requested
+            </p>
+            <h2 className="text-lg font-semibold">
+              from {trade.responder?.username ?? "responder"}
+            </h2>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {requested.map((ti) => (
               <ItemCard key={ti.item.id} item={ti.item} />
             ))}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
