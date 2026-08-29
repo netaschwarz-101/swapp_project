@@ -31,7 +31,15 @@ Next.js 16 (App Router, Server Components + Server Actions) · TypeScript (stric
    supabase db push
    ```
 
-5. **Run the app**
+5. **(Optional) Seed demo data**
+
+   ```bash
+   npm run seed
+   ```
+
+   Creates 5 demo users and ~40 items across cities/categories, so the feed and search have something real to show. Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see step 3). Must be run from a machine with normal internet access, not this repo's sandboxed dev container if you're using one — the script talks directly to your Supabase project over the network. Safe to re-run; it cleans up the demo users it created last time first. Demo login: any of the printed `@swapp.test` emails, password `SwappDemo123!`.
+
+6. **Run the app**
 
    ```bash
    npm run dev
@@ -50,6 +58,7 @@ See `docs/technical-design.md §1` for the full folder layout and the rationale 
 - `npm run lint` — ESLint
 - `npm run format` — Prettier (writes)
 - `npm run format:check` — Prettier (check only, used in CI)
+- `npm run seed` — populate demo users + items (see step 5 above)
 
 ## Deployment
 
