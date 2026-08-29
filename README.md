@@ -77,11 +77,12 @@ See `docs/test-plan.md` for the full strategy (per-feature happy path / invalid 
 npm test
 ```
 
-**End-to-end tests** (`tests/e2e/`, Playwright) — need a real Supabase project with the migrations applied and demo data seeded (steps 2–5 above), since this exercises real RLS policies and Server Actions, not mocks:
+**End-to-end tests** (`tests/e2e/`, Playwright) — need a real Supabase project with the migrations applied and demo data seeded (steps 2–5 above), since this exercises real RLS policies and Server Actions, not mocks. Playwright does **not** start the dev server itself (Next won't run two `next dev` instances for the same project, which fights with Playwright's own auto-start logic) — start it yourself first, in a separate terminal:
 
 ```bash
 npm run seed        # if you haven't already — the specs log in as these demo accounts
-npm run test:e2e    # starts `next dev` itself if it isn't already running
+npm run dev          # in one terminal, leave it running
+npm run test:e2e     # in another terminal
 ```
 
 By default the specs use the seeded `maya@swapp.test` / `danny@swapp.test` / `noa@swapp.test` accounts (password `SwappDemo123!`). Override with `SWAPP_TEST_EMAIL_A` / `_B` / `_C` and `SWAPP_TEST_PASSWORD` env vars if you're pointing at different accounts. Each spec creates its own uniquely-titled items at run time, so it's safe to run repeatedly without cleaning up between runs.
