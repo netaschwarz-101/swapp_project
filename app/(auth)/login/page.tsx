@@ -3,7 +3,11 @@
 import { Suspense, useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { login, type AuthActionState } from "@/actions/auth";
+import {
+  login,
+  resendConfirmation,
+  type AuthActionState,
+} from "@/actions/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/submit-button";
@@ -27,6 +31,10 @@ export default function LoginPage() {
 
 function LoginForm() {
   const [state, formAction] = useActionState(login, initialState);
+  const [resendState, resendAction] = useActionState(
+    resendConfirmation,
+    initialState,
+  );
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
   const confirmError = searchParams.get("error") === "confirmation_failed";
@@ -85,6 +93,36 @@ function LoginForm() {
               Log in
             </SubmitButton>
           </form>
+
+          {state.needsConfirmation && (
+            <form
+              action={resendAction}
+              className="mt-4 flex flex-col gap-2 border-t pt-4"
+            >
+              <input type="hidden" name="email" value={state.email} />
+              <p className="text-muted-foreground text-sm">
+                Resend the confirmation email to{" "}
+                <span className="font-medium">{state.email}</span>?
+              </p>
+              {resendState.error && (
+                <p className="text-destructive text-sm" role="alert">
+                  {resendState.error}
+                </p>
+              )}
+              {resendState.info && (
+                <p className="text-sm text-emerald-600" role="status">
+                  {resendState.info}
+                </p>
+              )}
+              <SubmitButton
+                variant="outline"
+                className="w-full"
+                pendingText="Sending…"
+              >
+                Resend confirmation email
+              </SubmitButton>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
