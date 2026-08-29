@@ -163,6 +163,18 @@ This file records notable decisions as the project is built: what was decided, w
 
 ---
 
+## Phase 4 follow-up #2 — RLS circular dependency between `items` and `trade_items` (2026-08-29)
+
+**Bug:** after applying `0006`, creating a trade offer failed with a new, more specific error: `infinite recursion detected in policy for relation "trade_items"`. This is a real Postgres limitation, not a bug in the data or a misconfigured re-run — `0005_trades.sql` had built a genuine circular dependency between two policies without anyone intending to: `trade_items`'s INSERT policy queries `items` directly (to check the item is available and owned by the right side), and `items`'s SELECT policy — extended by that same migration — queries `trade_items` directly (so trade participants can still see items that are no longer `'available'`). When Postgres rewrites the `trade_items` insert, expanding `items`'s policy pulls `trade_items`'s policy back in, which is exactly the cycle the rewriter refuses to resolve rather than risk actually looping.
+
+**Fix:** `0007_fix_items_trade_items_rls_recursion.sql` moves the `trade_items` lookup inside `items`'s policy into a new `SECURITY DEFINER` function, `is_trade_participant_for_item()` — the same pattern `complete_trade()` already uses. A `SECURITY DEFINER` function is never inlined into the caller's query by the planner, so the query it runs against `trade_items` doesn't re-trigger `trade_items`'s own policy expansion the way a direct correlated subquery does, which breaks the cycle. The function still only reports true for the calling user's own trades (checks `auth.uid()` internally), so nothing gains broader visibility than the original policy intended — it's a mechanical fix for how Postgres's rewriter handles the reference, not a change in who can see what.
+
+**Why this wasn't caught during the Phase 4 build verification:** `next build`/`tsc`/`eslint` all pass regardless, since this is a live-database-only failure — the app code doing the query is correct; the migration's policy shape is what's wrong, and there's no local emulator running Postgres RLS in this project. This is exactly the category of bug the work plan's Phase 4 note anticipated ("not yet exercised against a live database").
+
+**Verification:** no application code changed, so no new `eslint`/`tsc`/`next build` run beyond what Phase 4 follow-up #1 already covered. The migration's correctness was checked by tracing exactly which policy queries which table (above) rather than a local run, since this sandbox has no live Postgres/Supabase connection — needs the same manual live-database check as any migration here.
+
+---
+
 ## Visual refresh — "plain white riso" + light/dark theme (2026-08-29)
 
 **Decision:** applied `SWAPP_REDESIGN.md` phase by phase as a pure styling change — no route, Server Action, Supabase query, RLS policy, zod schema, or prop signature touched (the one prop addition, `ItemCard`'s optional `index`, is presentational only, used to alternate ink tones).
