@@ -194,3 +194,15 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes. Not yet re-tested against the live database with this specific 3-account scenario — that's the next thing to verify once this migration is applied.
 
 **Needs manual cleanup once:** the live database currently has `neta`'s trade sitting `pending` against an item already committed via `noa_haifa`'s accepted trade — a state this fix prevents going forward but doesn't retroactively repair. See the message alongside this commit for one-off cleanup SQL.
+
+---
+
+## Phase 4 follow-up #5 — trade action errors shown inline, not as a crash page (2026-08-29)
+
+**Found immediately after #4 shipped, via a real test:** with two users' items already committed to an accepted trade, a third trade was created re-offering the same items (reversed roles) and then accepted — which `accept_trade()` correctly rejects (`0008`'s "already committed to another accepted trade" check working exactly as designed). But the rejection surfaced to the user as a generic "Something went wrong!" page, not a clear message.
+
+**Root cause:** `components/trade-actions.tsx`'s Accept/Decline/Cancel/Confirm-complete buttons were plain `<form action={() => acceptTrade(tradeId)}>` submissions. `actions/trades.ts` reports failure for all four by throwing an `Error` (not returning a `{ error }` state like `createTrade` does) — and a thrown error from a plain form action has nowhere to go but React's nearest error boundary, which is the generic crash screen. The rejection itself was correct; only its presentation was broken.
+
+**Fix:** `trade-actions.tsx` now calls each Server Action directly from a `useTransition`-wrapped `onClick` handler instead of a form submission, with a `try/catch` that stores any thrown message in local state and renders it inline (`text-destructive`, same pattern `createTrade`'s form already uses) above the buttons. `useFormStatus`/`SubmitButton` (which requires a real `<form>`) no longer applies here, so pending state is tracked via `useTransition`'s own `isPending` instead — buttons disable and show "Accepting…"/"Completing…" the same as before.
+
+**Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes.
