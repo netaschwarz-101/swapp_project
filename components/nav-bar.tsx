@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function NavBar() {
   const supabase = await createClient();
@@ -26,6 +27,7 @@ export async function NavBar() {
           Swapp
         </Link>
         <div className="flex items-center gap-4 text-sm">
+          <ThemeToggle />
           <Link
             href="/search"
             className="text-muted-foreground hover:text-foreground"
