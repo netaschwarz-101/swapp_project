@@ -106,8 +106,8 @@ export default async function ItemDetailPage({
           </div>
         ) : item.status === "available" ? (
           user ? (
-            <Button disabled title="Trading opens in Phase 4">
-              Offer a trade
+            <Button asChild>
+              <Link href={`/trades/new?item=${item.id}`}>Offer a trade</Link>
             </Button>
           ) : (
             <Button asChild>

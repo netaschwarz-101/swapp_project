@@ -109,11 +109,27 @@ export async function deleteItem(itemId: string) {
     throw new Error("You can only delete your own items.");
   }
 
-  // Phase 2: trades don't exist yet, so every delete is a hard delete.
-  // Phase 4 revisits this to soft-delete (status='deleted') instead,
-  // whenever the item has ever appeared in a trade_items row — per
-  // docs/technical-design.md §4, so trade history stays intact.
-  const { error } = await supabase.from("items").delete().eq("id", itemId);
+  // Soft-delete (keep the row, hide it) if this item has ever appeared
+  // in a trade — trade history (including completed trades) needs to
+  // keep pointing at something real. Hard-delete otherwise. Note
+  // trade_items.item_id has no ON DELETE CASCADE from items on purpose
+  // (0005_trades.sql), so even without this check a hard delete of a
+  // trade-referenced item would fail loudly on the foreign key rather
+  // than silently orphaning trade history — this check just turns that
+  // into a normal soft delete instead of an error.
+  const { count } = await supabase
+    .from("trade_items")
+    .select("id", { count: "exact", head: true })
+    .eq("item_id", itemId);
+
+  const { error } =
+    count && count > 0
+      ? await supabase
+          .from("items")
+          .update({ status: "deleted" })
+          .eq("id", itemId)
+      : await supabase.from("items").delete().eq("id", itemId);
+
   if (error) throw new Error("Couldn't delete the item.");
 
   revalidatePath("/my-items");
