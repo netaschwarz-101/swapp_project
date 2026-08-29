@@ -133,9 +133,12 @@ export async function createTrade(
     };
   }
 
-  // 5. revalidate
+  // 5. revalidate — redirect to a dedicated confirmation page rather than
+  // straight into the trade detail view, so the person who just sent an
+  // offer gets a clear "it worked" moment (and an easy way back home)
+  // instead of landing on a busy page mid-negotiation.
   revalidatePath("/trades");
-  redirect(`/trades/${trade.id}`);
+  redirect(`/trades/${trade.id}/confirmed`);
 }
 
 async function loadTradeForTransition(tradeId: string, userId: string) {

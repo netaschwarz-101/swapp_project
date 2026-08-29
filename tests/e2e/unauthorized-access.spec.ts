@@ -84,9 +84,12 @@ test("a user who isn't a trade participant gets a clean 404, not a leaked row", 
     .getByRole("checkbox")
     .check();
   await pageA.getByRole("button", { name: "Send trade offer" }).click();
-  await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)$/);
-  const tradeId = pageA.url().match(/\/trades\/([0-9a-f-]+)$/)?.[1];
-  if (!tradeId) throw new Error("Expected redirect to /trades/[id]");
+  // createTrade redirects to /trades/[id]/confirmed on success.
+  await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
+  const tradeId = pageA
+    .url()
+    .match(/\/trades\/([0-9a-f-]+)\/confirmed$/)?.[1];
+  if (!tradeId) throw new Error("Expected redirect to /trades/[id]/confirmed");
 
   // C is logged in, but isn't A or B — visiting the trade directly must
   // 404, exactly like a logged-out or unrelated user would see.

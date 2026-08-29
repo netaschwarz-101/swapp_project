@@ -10,12 +10,19 @@ test.describe("signup", () => {
     // session exists, and this suite has no mailbox to read (see
     // helpers.ts). This test covers everything that *is* verifiable:
     // valid input is accepted and the expected next-step message shows.
+    //
+    // Domain must be @swapp.test, not @example.com — found by actually
+    // running this: Supabase's own signUp() rejects example.com outright
+    // ("Email address ... is invalid"), before it ever gets far enough to
+    // check whether confirmation is required. swapp.test is the same
+    // placeholder domain the seeded demo accounts already use
+    // successfully (scripts/seed.ts), so it's known to clear this check.
     const unique = Date.now();
     await page.goto("/signup");
     await page.getByLabel("Username").fill(`e2e_test_${unique}`);
     await page.getByLabel("City").click();
     await page.getByRole("option", { name: "Haifa" }).click();
-    await page.getByLabel("Email").fill(`e2e_test_${unique}@example.com`);
+    await page.getByLabel("Email").fill(`e2e_test_${unique}@swapp.test`);
     await page.getByLabel("Password").fill("TestPassword123!");
     await page.getByRole("button", { name: "Sign up" }).click();
 
@@ -33,7 +40,7 @@ test.describe("signup", () => {
     await page.getByLabel("Username").fill("e2e_short_pw");
     await page.getByLabel("City").click();
     await page.getByRole("option", { name: "Haifa" }).click();
-    await page.getByLabel("Email").fill("e2e_short_pw@example.com");
+    await page.getByLabel("Email").fill("e2e_short_pw@swapp.test");
     const passwordInput = page.getByLabel("Password");
     await passwordInput.fill("short1");
     // The Input has minLength={8} + required — the browser's native

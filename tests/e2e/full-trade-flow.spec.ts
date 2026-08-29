@@ -53,15 +53,20 @@ test("full trade cycle: offer → accept → confirm complete", async ({
     .check();
   await pageA.getByRole("button", { name: "Send trade offer" }).click();
 
-  // createTrade redirects to /trades/[id] on success.
-  await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)$/);
-  const tradeId = pageA.url().match(/\/trades\/([0-9a-f-]+)$/)?.[1];
-  if (!tradeId) throw new Error("Expected redirect to /trades/[id]");
+  // createTrade redirects to /trades/[id]/confirmed on success.
+  await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
+  const tradeId = pageA
+    .url()
+    .match(/\/trades\/([0-9a-f-]+)\/confirmed$/)?.[1];
+  if (!tradeId) throw new Error("Expected redirect to /trades/[id]/confirmed");
 
-  await expect(pageA.getByText("Pending")).toBeVisible();
+  await expect(
+    pageA.getByRole("heading", { name: "Trade offer sent!" }),
+  ).toBeVisible();
 
   // B accepts.
   await pageB.goto(`/trades/${tradeId}`);
+  await expect(pageB.getByText("Pending")).toBeVisible();
   await pageB.getByRole("button", { name: "Accept" }).click();
   await expect(pageB.getByText("Accepted")).toBeVisible();
 
@@ -73,13 +78,19 @@ test("full trade cycle: offer → accept → confirm complete", async ({
   // Both items are now marked traded and no longer offerable — see
   // complete_trade() in supabase/migrations/0005_trades.sql.
   await pageA.goto(`/items/${itemAId}`);
-  await expect(pageA.getByText("Traded", { exact: true })).toBeVisible();
+  // The badge's raw text is the lowercase status value ("traded") — the
+  // capital "T" seen on screen is CSS text-transform: capitalize
+  // (components/ui/badge usage in items/[id]/page.tsx), which changes how
+  // the browser paints the text, not the actual DOM text node Playwright
+  // matches against. Found by actually running this: the app was working
+  // correctly the whole time, only this assertion's casing was wrong.
+  await expect(pageA.getByText("traded", { exact: true })).toBeVisible();
   await expect(
     pageA.getByRole("link", { name: "Offer a trade" }),
   ).toHaveCount(0);
 
   await pageA.goto(`/items/${itemBId}`);
-  await expect(pageA.getByText("Traded", { exact: true })).toBeVisible();
+  await expect(pageA.getByText("traded", { exact: true })).toBeVisible();
 
   await ctxA.close();
   await ctxB.close();
@@ -127,8 +138,8 @@ test("accepting one offer auto-cancels a competing pending offer for the same it
       .getByRole("checkbox")
       .check();
     await page.getByRole("button", { name: "Send trade offer" }).click();
-    await expect(page).toHaveURL(/\/trades\/([0-9a-f-]+)$/);
-    return page.url().match(/\/trades\/([0-9a-f-]+)$/)?.[1];
+    await expect(page).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
+    return page.url().match(/\/trades\/([0-9a-f-]+)\/confirmed$/)?.[1];
   }
 
   const tradeAId = await offerOn(pageA, itemBId, `E2E A's offered item ${ts}`);
