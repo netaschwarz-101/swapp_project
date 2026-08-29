@@ -103,9 +103,9 @@ export default async function SearchPage({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {items.map((item) => (
-              <ItemCard key={item.id} item={item} />
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-4">
+            {items.map((item, index) => (
+              <ItemCard key={item.id} item={item} index={index} />
             ))}
           </div>
 

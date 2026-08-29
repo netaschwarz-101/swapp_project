@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TradeStatusBadge } from "@/components/trade-status-badge";
-import { roleOf } from "@/lib/trade-machine";
+import { InkBlock } from "@/components/ink-block";
+import { canAccept, canConfirmComplete, roleOf } from "@/lib/trade-machine";
 import type { TradeStatus } from "@/lib/constants";
 
 type TradeRow = {
@@ -54,10 +55,13 @@ export default async function TradesPage() {
             const role = roleOf(user.id, trade);
             const counterpart =
               role === "initiator" ? trade.responder : trade.initiator;
+            const needsAction =
+              role !== null &&
+              (canAccept(trade.status, role) ||
+                canConfirmComplete(trade.status, role));
 
-            return (
+            const row = (
               <Link
-                key={trade.id}
                 href={`/trades/${trade.id}`}
                 className="hover:bg-accent flex items-center justify-between gap-4 p-4"
               >
@@ -72,6 +76,14 @@ export default async function TradesPage() {
                 </div>
                 <TradeStatusBadge status={trade.status} />
               </Link>
+            );
+
+            return needsAction ? (
+              <InkBlock key={trade.id} tone="success">
+                {row}
+              </InkBlock>
+            ) : (
+              <div key={trade.id}>{row}</div>
             );
           })}
         </div>
