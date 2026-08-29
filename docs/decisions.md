@@ -160,3 +160,25 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `eslint` clean; `tsc --noEmit` clean (only the pre-existing, unrelated `LayoutProps` error in `app/layout.tsx`); full `next build` compiles all 13 routes.
 
 **Needs manual cleanup once:** the 3 duplicate trades already sitting in the live database were created before this fix and won't clean themselves up — see the message alongside this commit for the one-off SQL to remove them.
+
+---
+
+## Visual refresh — "plain white riso" + light/dark theme (2026-08-29)
+
+**Decision:** applied `SWAPP_REDESIGN.md` phase by phase as a pure styling change — no route, Server Action, Supabase query, RLS policy, zod schema, or prop signature touched (the one prop addition, `ItemCard`'s optional `index`, is presentational only, used to alternate ink tones).
+
+**Phase 1 (tokens):** `app/globals.css` — 1rem radius (was 0.625rem), near-black `--border` instead of the light grey hairline, lighter `--muted-foreground`, and four new `--ink-*` decorative variables (light + dark values, wired into `@theme inline` as `ink-warm`/`ink-cool`/`ink-olive`/`ink-success` utilities). These are documented as decorative-only — never used for text or borders — so they can't accidentally end up carrying a contrast requirement.
+
+**Phase 2 (primitives):** `components/ui/card.tsx` (rounded-2xl, 1.5px border, dropped shadow), `button.tsx` and `badge.tsx` (pill/`rounded-full`). Inputs/textarea/select intentionally left alone — `border-input` staying lighter than the new card border is what makes cards read as outlined shapes and inputs read as quieter form fields.
+
+**Phase 3 (InkBlock):** new `components/ink-block.tsx`, a presentational wrapper with no state. Applied in exactly the three places the spec called for: `ItemCard` (alternating warm/cool by grid index, passed from `app/page.tsx`'s and `app/search/page.tsx`'s `.map()`, with grid `gap-4` → `gap-8` so offsets don't collide), and the trades inbox (`app/(protected)/trades/page.tsx`), where only trades needing the current user's action get `tone="success"` — reused the existing `canAccept`/`canConfirmComplete` guards from `lib/trade-machine.ts` for that condition (pending-as-responder or accepted_by_responder-as-initiator) rather than re-deriving the same logic inline, so this can't silently drift from the actual state machine. Form cards, the offer builder, the message thread, and `my-items` rows were left plain, per the spec.
+
+**Phase 4 (token hygiene):** repo-wide grep for hard-coded colours (`bg-white`, `text-black`, `bg-gray-*`, hex literals, etc.) turned up nothing beyond one spot: `components/image-uploader.tsx`'s remove-photo overlay button used `bg-black/60`/`text-white`. Replaced with `bg-foreground/60`/`text-background` and gave the thumbnail container `bg-muted` to match the other image containers (item card, item detail, offer builder already had it). Everything else in the app was already token-based going into this phase.
+
+**Phase 5 (theme):** added `next-themes`, `components/theme-provider.tsx` and `components/theme-toggle.tsx` exactly as specified, wired into `app/layout.tsx` (`suppressHydrationWarning` on `<html>`, `ThemeProvider` wrapping `NavBar` + `main`) and `nav-bar.tsx` (toggle first in the right-hand group). One deviation from the literal spec snippet: the `mounted` hydration guard's `useEffect(() => setMounted(true), [])` trips this project's `react-hooks/set-state-in-effect` eslint rule (a newer, stricter rule than what most `next-themes` examples predate); rather than silently letting `npm run lint` fail, added a scoped `eslint-disable-next-line` on that one line with a comment explaining why — the pattern itself (avoiding a server/client icon mismatch before the client has mounted) is unchanged.
+
+**Skipped per rule 1 (no data/query changes):** none — every visual change in the spec was achievable with class-name and token edits alone; nothing needed to touch `actions/`, `lib/`, `supabase/`, or a `page.tsx`'s data fetching.
+
+**Hard-coded colours left in place:** none found after the Phase 4 sweep.
+
+**Verification:** `eslint` clean, `tsc --noEmit` clean (only the pre-existing, unrelated `LayoutProps` error in `app/layout.tsx`, noted in earlier entries). `next build` could not be run to completion in this environment — this sandbox's shell has no general network access, and the build here fails first on a missing platform SWC binary it would normally fetch, and once that resolved (after `npm i next-themes` pulled in the right binary as a side effect), on `next/font`'s Google Fonts fetch for Geist/Geist Mono, both pre-existing, environment-only failures unrelated to this change (fonts were explicitly left untouched per the spec). Compilation got through resolving every route and component before hitting the font fetch, which is as far as this sandbox can verify — a full `next build`/`npm run dev` should be run locally (or on Vercel) to confirm the visual result and toggle behavior end-to-end.
