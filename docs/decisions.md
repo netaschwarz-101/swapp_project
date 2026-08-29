@@ -110,3 +110,13 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `eslint` clean; full `next build` compiles all 10 routes (adds `/search`); `tsc --noEmit` clean (the `.rpc()` calls needed an explicit type cast to `ItemCardData[]`, same root cause as the rest of the app's loosely-typed Supabase calls — no generated types yet).
 
 **Not run yet:** the seed script itself — it needs to be executed from your machine with `SUPABASE_SERVICE_ROLE_KEY` set, which I don't have and shouldn't be given as plain text. Run `npm run seed` locally once you're ready for demo data.
+
+---
+
+## Post-seed fixes — item ownership/city correlation, search excludes own items (2026-08-29)
+
+**Bug: the "For You" feed came back empty for every demo account, in their own city specifically.** `scripts/seed.ts` originally assigned an item's owner via `i % 5` and its city via `i % 10`. Since 10 is a multiple of 5, `i % 5` is fully determined by `i % 10` — so every item posted in a given city always landed on the exact same one of the 5 owners. Each demo user's profile city was also set to one of those "their" cities, so 100% of the items in a user's own city turned out to be their own listings, and `feed_items()` (which excludes the viewer's own items by design) had nothing left to show. Fixed by cycling city per *row* of 5 items instead of per item (`Math.floor(i / 5) % CITIES.length`) — that keeps one item per owner in each city before the city changes, so no city is ever 100% one person's listings.
+
+**Search now also excludes the viewer's own items, at your request.** Worth noting for the record since it's a genuine judgment call, not a bug fix: most real marketplaces (Facebook Marketplace, Craigslist) *do* show your own listings in general search — it's a "find anything" tool, unlike a personalized feed. We chose to make `/search` match the "For You" feed's behavior instead (never show your own stuff), via `.neq("owner_id", user.id)` in `app/search/page.tsx` when a viewer is signed in.
+
+**Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 10 routes. Re-run `npm run seed` to pick up the corrected city/owner distribution (it deletes and recreates the demo users, so this is safe).

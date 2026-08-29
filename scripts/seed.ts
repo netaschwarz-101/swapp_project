@@ -278,13 +278,23 @@ async function createDemoUsers() {
 }
 
 async function createDemoItems(ownerIds: string[]) {
+  // Owner cycles every 5 items (i % 5) and city cycles every 5 *items of
+  // the same owner slot* (Math.floor(i / 5) % 10), not every item — if
+  // both cycled off the same `i` directly (i % 5 and i % 10), every
+  // city's items would always land on exactly one fixed owner, since 10
+  // is a multiple of 5. That's exactly what happened the first time:
+  // every item in a given demo user's own city turned out to be owned
+  // by that same user, so their "For You" feed (which excludes your own
+  // items) came back empty for every single demo account. Grouping city
+  // by row instead of by item breaks that correlation: each block of 5
+  // consecutive items has one item per owner before the city changes.
   const rows = ITEM_TEMPLATES.map((tpl, i) => ({
     owner_id: ownerIds[i % ownerIds.length],
     title: tpl.title,
     description: `${tpl.title} — barely used, posted as part of Swapp's demo data.`,
     category: tpl.category,
     condition: tpl.condition,
-    city: CITIES[i % CITIES.length],
+    city: CITIES[Math.floor(i / ownerIds.length) % CITIES.length],
     image_urls: imageUrls(`swapp-${i}`, i % 2 === 0 ? 2 : 1),
   }));
 

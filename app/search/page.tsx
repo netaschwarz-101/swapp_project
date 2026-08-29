@@ -43,12 +43,22 @@ export default async function SearchPage({
   const offset = (page - 1) * PAGE_SIZE;
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   let query = supabase
     .from("items")
     .select("id, title, category, condition, city, status, image_urls", {
       count: "exact",
     })
     .eq("status", "available");
+
+  // Unlike a real marketplace search (which normally does show your own
+  // listings — you'd expect to find your own post), this excludes the
+  // viewer's own items by request, matching the "For You" feed's
+  // behavior so results are always things you could actually trade for.
+  if (user) query = query.neq("owner_id", user.id);
 
   if (q) query = query.ilike("title", `%${q}%`);
   if (category !== "all") query = query.eq("category", category);
