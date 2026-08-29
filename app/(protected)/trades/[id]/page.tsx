@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ItemCard, type ItemCardData } from "@/components/item-card";
 import { TradeStatusBadge } from "@/components/trade-status-badge";
 import { TradeActions } from "@/components/trade-actions";
-import { roleOf } from "@/lib/trade-machine";
+import { TradeChat, type ChatMessage } from "@/components/trade-chat";
+import { canSendMessage, roleOf } from "@/lib/trade-machine";
 import type { TradeStatus } from "@/lib/constants";
 
 type TradeItemRow = {
@@ -59,6 +60,14 @@ export default async function TradeDetailPage({
   const tradeItems = (tradeItemsData ?? []) as unknown as TradeItemRow[];
   const offered = tradeItems.filter((ti) => ti.side === "offered");
   const requested = tradeItems.filter((ti) => ti.side === "requested");
+
+  const { data: messagesData } = await supabase
+    .from("messages")
+    .select("id, sender_id, body, created_at")
+    .eq("trade_id", id)
+    .order("created_at", { ascending: true });
+
+  const messages = (messagesData ?? []) as ChatMessage[];
 
   return (
     <div className="flex flex-col gap-6">
@@ -117,6 +126,17 @@ export default async function TradeDetailPage({
           </div>
         </section>
       </div>
+
+      <TradeChat
+        tradeId={trade.id}
+        currentUserId={user.id}
+        initiatorId={trade.initiator_id}
+        responderId={trade.responder_id}
+        initiatorUsername={trade.initiator?.username ?? "initiator"}
+        responderUsername={trade.responder?.username ?? "responder"}
+        initialMessages={messages}
+        disabled={!canSendMessage(trade.status)}
+      />
     </div>
   );
 }

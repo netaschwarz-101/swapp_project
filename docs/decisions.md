@@ -206,3 +206,23 @@ This file records notable decisions as the project is built: what was decided, w
 **Fix:** `trade-actions.tsx` now calls each Server Action directly from a `useTransition`-wrapped `onClick` handler instead of a form submission, with a `try/catch` that stores any thrown message in local state and renders it inline (`text-destructive`, same pattern `createTrade`'s form already uses) above the buttons. `useFormStatus`/`SubmitButton` (which requires a real `<form>`) no longer applies here, so pending state is tracked via `useTransition`'s own `isPending` instead — buttons disable and show "Accepting…"/"Completing…" the same as before.
 
 **Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes.
+
+---
+
+## Phase 5 — Messaging (2026-08-29)
+
+**Decision:** a `messages` table + RLS, a chat thread embedded directly in the trade detail page (not a separate route or a general inbox), sent via a Server Action, refreshed by polling every 5 seconds while the trade's still live — exactly the shape called for in the work plan and already sketched in `docs/technical-design.md`'s schema section.
+
+**Polling, not Realtime, on purpose.** `components/trade-chat.tsx` refetches messages every 5s with a plain `setInterval` using the browser Supabase client (`lib/supabase/client.ts`), rather than a Supabase Realtime subscription. A course-scale trade thread between two people doesn't need sub-second delivery, and polling keeps the app on one request/response model throughout instead of introducing a second connection type (websockets) just for this feature. `docs/scale.md` (Phase 7) will note Realtime as the documented upgrade path if this ever needed to feel instant. Polling only runs while the trade is still live (`disabled` prop) — a terminal trade's history can't change, so there's nothing to refresh.
+
+**Enforced in both the DB and the UI that a terminal trade can't be messaged**, same double-layer pattern as everywhere else in this app: `0009_messages.sql`'s insert policy requires `t.status not in ('completed', 'declined', 'cancelled')` in addition to participant + `sender_id = auth.uid()` checks, and `trade-chat.tsx` also hides the input and shows "This trade is no longer active" when `!canSendMessage(status)` (`lib/trade-machine.ts`, already existed from Phase 4's state machine — nothing new needed there). Even if the UI check were ever wrong, the RLS policy is the real backstop.
+
+**No separate authorization/state pre-check in `sendMessage`, unlike `createTrade`/`acceptTrade`.** Sending a message is a single insert with exactly one rule ("participant, live trade, posting as yourself") — that's precisely what the RLS insert policy already expresses in one place, so duplicating it as a second application-level check would just be the same logic twice for no extra safety, unlike the trade actions where the pre-check gives a specific, friendlier error before ever reaching the DB.
+
+**Messages are immutable — no edit or delete.** Not in the work plan's scope, and deliberately so: letting either side quietly rewrite what they said would undermine the one thing a negotiation thread is for — an honest record both people can trust.
+
+**Errors shown inline**, following the pattern just established for trade actions (`components/trade-actions.tsx`): `sendMessage` throws, `trade-chat.tsx` catches it in a `useTransition`-wrapped handler and renders the message inline rather than crashing to Next's default error boundary.
+
+**Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes (messaging lives inside the existing `/trades/[id]` page — no new route).
+
+**Not yet exercised against a live database** — needs a real two-account test (send from both sides, confirm polling picks up the other person's message within 5s, confirm input disables once a trade reaches a terminal state) once this migration is applied.
