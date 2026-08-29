@@ -93,13 +93,13 @@ export function ImageUploader({ value, onChange }: Props) {
         {value.map((url) => (
           <div
             key={url}
-            className="relative h-24 w-24 overflow-hidden rounded-md border"
+            className="bg-muted relative h-24 w-24 overflow-hidden rounded-md border"
           >
             <Image src={url} alt="" fill className="object-cover" unoptimized />
             <button
               type="button"
               onClick={() => removeImage(url)}
-              className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white"
+              className="bg-foreground/60 text-background absolute top-1 right-1 rounded-full p-1"
               aria-label="Remove image"
             >
               <X className="size-3" />
