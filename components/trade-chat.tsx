@@ -92,6 +92,43 @@ export function TradeChat({
     return "Swapp user";
   }
 
+  // An empty, still-open thread collapses to a single row — label, input,
+  // send button, nothing else — rather than a heading plus a half-page
+  // empty panel with no messages in it yet. Once there's history (or the
+  // trade is closed), it expands back to the full heading + scrollable
+  // list + composer layout below.
+  if (messages.length === 0 && !disabled) {
+    return (
+      <section className="flex items-center gap-2 rounded-xl border p-4">
+        <h2 className="shrink-0 text-lg font-semibold">Messages</h2>
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder="Say hello and work out how you'll swap these items…"
+          maxLength={1000}
+          disabled={isPending}
+        />
+        <Button
+          onClick={handleSend}
+          disabled={isPending || draft.trim().length === 0}
+        >
+          Send
+        </Button>
+        {error && (
+          <p className="text-destructive text-sm" role="alert">
+            {error}
+          </p>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-3 rounded-xl border p-4">
       <h2 className="text-lg font-semibold">Messages</h2>

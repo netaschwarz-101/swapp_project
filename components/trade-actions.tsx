@@ -76,6 +76,7 @@ export function TradeActions({ tradeId, status, role }: Props) {
       <Button
         key="decline"
         variant="outline"
+        className="text-destructive border-destructive hover:bg-destructive/10"
         disabled={isPending}
         onClick={() => run(() => declineTrade(tradeId))}
       >
@@ -91,20 +92,37 @@ export function TradeActions({ tradeId, status, role }: Props) {
         disabled={isPending}
         onClick={() => run(() => confirmCompleteTrade(tradeId))}
       >
-        {isPending ? "Completing…" : "Confirm trade complete"}
+        {isPending ? "Confirming…" : "Confirm exchange"}
       </Button>,
     );
   }
 
   if (canCancel(status, role)) {
+    // Same action (cancelTrade), different copy depending on where the
+    // trade is: withdrawing a still-pending offer isn't the same feeling
+    // as backing out of one the other person already accepted, even
+    // though the backend transition is identical either way.
+    const isWithdrawal = status === "accepted_by_responder";
     actions.push(
       <Button
         key="cancel"
         variant="outline"
+        className={
+          isWithdrawal
+            ? "text-destructive border-destructive hover:bg-destructive/10"
+            : undefined
+        }
         disabled={isPending}
-        onClick={() => run(() => cancelTrade(tradeId), "Cancel this trade?")}
+        onClick={() =>
+          run(
+            () => cancelTrade(tradeId),
+            isWithdrawal
+              ? "Withdraw from this trade?"
+              : "Cancel this trade offer?",
+          )
+        }
       >
-        Cancel
+        {isWithdrawal ? "Withdraw" : "Cancel offer"}
       </Button>,
     );
   }

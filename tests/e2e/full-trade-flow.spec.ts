@@ -72,7 +72,7 @@ test("full trade cycle: offer → accept → confirm complete", async ({
 
   // A confirms completion.
   await pageA.goto(`/trades/${tradeId}`);
-  await pageA.getByRole("button", { name: "Confirm trade complete" }).click();
+  await pageA.getByRole("button", { name: "Confirm exchange" }).click();
   await expect(pageA.getByText("Completed")).toBeVisible();
 
   // Both items are now marked traded and no longer offerable — see
