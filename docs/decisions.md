@@ -142,3 +142,21 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes (adds `/trades`, `/trades/[id]`, `/trades/new`).
 
 **Not yet exercised against a live database** — the trigger logic, RLS policies, and `complete_trade()`'s atomicity all need a real end-to-end test (two seeded users completing a full trade) once this migration is applied, which is exactly what the work plan's Phase 4 deliverable calls for next.
+
+---
+
+## Phase 4 follow-up — missing DELETE policy, duplicate-offer prevention (2026-08-29)
+
+**Bug: creating a trade offer kept failing, and every failed attempt left a visible duplicate behind.** After applying `0005_trades.sql`, offer creation still returned a generic "couldn't create trade offer" error, and the trades inbox showed three near-identical trades to the same responder for the same item. Root cause was two separate things stacking on top of each other:
+
+**1. `trades` had no DELETE policy.** `createTrade`'s orphan-cleanup step (`actions/trades.ts`) inserts the `trades` row, then inserts its `trade_items`; if the second insert fails, it deletes the just-created trade so nothing broken is left behind. `0005_trades.sql` never added a DELETE policy for `trades`, so under RLS that delete silently affected zero rows — no error, just a no-op — meaning every failed attempt (and every retry after it) left one more empty, itemless trade sitting in the inbox instead of cleaning up after itself. `0006_trades_delete_policy.sql` adds a DELETE policy scoped to exactly that situation: the initiator, only while `status = 'pending'`, only while the trade has zero `trade_items` rows. It can never delete a real trade, only the specific "this create attempt didn't finish" state.
+
+**2. The error message was too generic to show what was actually failing.** `createTrade` returned the same fixed string regardless of cause, which made retries look identical from the outside even though something in the `trade_items` insert was being rejected each time. Changed both failure branches to interpolate the real Postgres/PostgREST `.message` into the returned error, so the next attempt will surface the actual reason instead of masking it.
+
+**Added a duplicate-open-offer check**, at your request: before inserting, `createTrade` now looks for an existing `trade_items` row where you're the initiator, the item is on the `requested` side, and the trade is still `pending` or `accepted_by_responder` — if one exists, it returns "You already have an open offer for one of these items" instead of creating another. This is an application-layer check (not RLS), since "does this exact offer already exist" isn't something a row-level policy on a single insert can express — it needs to look across existing rows first.
+
+**"Redirect after a successful offer to stop double-clicks" needed no new code.** `createTrade` already calls `redirect()` immediately after a successful insert (same pattern as `createItem`/`login`/`signup`), and `SubmitButton` already disables itself while the form is pending via `useFormStatus().pending`. The reason it *looked* like double-submits were getting through was the bug above — every click was failing and returning to the same page, which looks identical to a double-click succeeding twice. No new code added here; if it recurs after the fixes above, that would point at something else.
+
+**Verification:** `eslint` clean; `tsc --noEmit` clean (only the pre-existing, unrelated `LayoutProps` error in `app/layout.tsx`); full `next build` compiles all 13 routes.
+
+**Needs manual cleanup once:** the 3 duplicate trades already sitting in the live database were created before this fix and won't clean themselves up — see the message alongside this commit for the one-off SQL to remove them.

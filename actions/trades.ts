@@ -75,6 +75,24 @@ export async function createTrade(
     }
   }
 
+  // 3b. reject a duplicate open offer — same initiator, same requested
+  // item, already pending or accepted. Without this, retrying after an
+  // error (or an impatient double-click) creates a pile of identical
+  // offers instead of one.
+  const { data: existingOffers } = await supabase
+    .from("trade_items")
+    .select("trade_id, trades!inner(status, initiator_id)")
+    .in("item_id", requested_item_ids)
+    .eq("side", "requested")
+    .eq("trades.initiator_id", user.id)
+    .in("trades.status", ["pending", "accepted_by_responder"]);
+
+  if (existingOffers && existingOffers.length > 0) {
+    return {
+      error: "You already have an open offer for one of these items.",
+    };
+  }
+
   // 4. mutation — two inserts, not one transaction (see docs/decisions.md,
   // Phase 4): create the trade, then attach its items. If the second
   // insert fails partway, clean up the orphaned trade rather than leave
@@ -86,7 +104,9 @@ export async function createTrade(
     .single();
 
   if (tradeError || !trade) {
-    return { error: "Couldn't create the trade offer. Please try again." };
+    return {
+      error: `Couldn't create the trade offer: ${tradeError?.message ?? "unknown error"}`,
+    };
   }
 
   const tradeItemRows = [
@@ -108,7 +128,9 @@ export async function createTrade(
 
   if (itemsError) {
     await supabase.from("trades").delete().eq("id", trade.id);
-    return { error: "Couldn't create the trade offer. Please try again." };
+    return {
+      error: `Couldn't create the trade offer: ${itemsError.message}`,
+    };
   }
 
   // 5. revalidate
