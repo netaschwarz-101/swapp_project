@@ -226,3 +226,25 @@ This file records notable decisions as the project is built: what was decided, w
 **Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes (messaging lives inside the existing `/trades/[id]` page — no new route).
 
 **Not yet exercised against a live database** — needs a real two-account test (send from both sides, confirm polling picks up the other person's message within 5s, confirm input disables once a trade reaches a terminal state) once this migration is applied.
+
+---
+
+## Phase 6 — Test plan + tests (2026-08-29)
+
+**Decision:** `docs/test-plan.md` (per assignment §6, per-feature: happy path, invalid inputs, permission checks, state-machine violations, edge cases, DB integrity, basic UI checks), Vitest unit tests for all pure logic, Playwright E2E specs for the real flows, and `docs/manual-tests.md` for what's left over — matching the work plan's Phase 6 shape exactly.
+
+**Found and documented a real gap while writing the test plan, not new scope from this phase:** `/profile` and `updateProfile` are described in `docs/technical-design.md` as already built, but neither exists — the route folder is empty, there's no Server Action, and the nav bar links to a dead route. `lib/validation/profile.ts`'s `profileUpdateSchema` and the RLS policy that would back it (`0001_profiles.sql`) were both already in place, unused. Excluded from this test plan and flagged directly in `technical-design.md` §4/§5 rather than quietly built now — see the earlier discussion in this session: with 8 days to the deadline and Phases 6/7 (this phase, and security/scale docs) being graded assignment requirements, expanding scope to build a missing feature mid-test-writing was deliberately deferred rather than done reflexively.
+
+**Vitest covers pure logic only — no database, no network.** `tests/unit/trade-machine.test.ts` exhaustively covers every `(status, role)` combination each guard in `lib/trade-machine.ts` can be asked about (not just the happy path — every non-pending status is asserted `false` for `canAccept`, etc.), plus `roleOf()`'s non-participant case. `tests/unit/validation.test.ts` covers every zod schema in `lib/validation/`, valid input and every invalid-input case called out in the test plan, including boundary cases (exactly 1000 characters accepted, 1001 rejected) and one deliberately-documented gap (`createTradeSchema` can't check "not trading with yourself" — that needs the authenticated caller's id, which the schema doesn't have; the Server Action checks it instead). 49 tests, all green — `npm test`.
+
+**Playwright specs are written and syntax-verified here (`npx playwright test --list` enumerates all 13 without error), but can't actually run in this sandbox** — same constraint as `scripts/seed.ts`: no network path to `supabase.co`. Run them yourself with `npm run test:e2e` once `npm run dev` and a seeded database are both available locally (see `playwright.config.ts` — it starts `next dev` itself if not already running). They log in as the seeded demo accounts (`scripts/seed.ts`) rather than signing up fresh, because a fresh `signUp()` requires clicking a real confirmation email link that an automated test has no way to click without a mailbox-reading service — the signup spec instead verifies everything that *is* checkable: valid input is accepted and the right "check your email" message shows.
+
+**The trade-flow specs create their own fresh items at run time instead of depending on exactly what `npm run seed` generated.** Seed data is randomized per run (`scripts/seed.ts`'s templates), so hardcoding an expected item title would make the tests fragile to reseeding; posting a uniquely-titled item via the UI at the start of each spec keeps them self-contained and deterministic regardless of what's already in the database.
+
+**`full-trade-flow.spec.ts`'s second test reproduces the exact conflict-resolution bug found live** (`docs/decisions.md`, "trade accept conflict resolution"): two users each offer on the same item, the responder accepts one, and the test asserts the other flips to Cancelled immediately — the real scenario that was manually debugged earlier in this project, now pinned down as a regression test.
+
+**`unauthorized-access.spec.ts` tests RLS through the app, not around it** — a third participant is denied with an actual HTTP 404 on `/trades/[id]` and `/items/[id]/edit`, checked via the navigation response's status code rather than just "the button isn't visible," which is closer to what the assignment's permission-check requirement (§6: "test via direct Supabase client with A's JWT") is actually getting at, applied through the real UI instead of a raw Supabase client call.
+
+**Verification:** `eslint` clean; `tsc --noEmit` clean; full `next build` compiles all 13 routes (no new routes — tests aren't part of the app bundle); `npm test` (Vitest) — 49/49 passing; `npx playwright test --list` — all 13 E2E tests parse and enumerate correctly.
+
+**Not yet run:** the Playwright suite itself, which needs to be executed locally against a real Supabase project and a running dev server — see `README.md` for the exact commands.

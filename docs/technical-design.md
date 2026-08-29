@@ -40,7 +40,7 @@ swapp/
 │   ├── ui/                           # shadcn/ui primitives
 │   ├── item-card.tsx, item-form.tsx, image-uploader.tsx
 │   ├── trade-status-badge.tsx, offer-builder.tsx
-│   └── message-thread.tsx
+│   └── trade-chat.tsx
 ├── supabase/
 │   └── migrations/                   # numbered SQL migration files
 ├── scripts/
@@ -58,7 +58,7 @@ swapp/
 - **`lib/supabase/server.ts`** — creates a Supabase client bound to the incoming request's cookies (via `@supabase/ssr`); used by every Server Component and Server Action so RLS sees the real requesting user.
 - **`lib/trade-machine.ts`** — pure functions (`canAccept(status, role)`, `canConfirmComplete(status, role)`, etc.) with no I/O, extracted specifically so the trade state machine can be unit-tested without a database. The DB function `complete_trade` and the Server Actions both defer to the same rules this module encodes conceptually, so there is one place to reason about legal transitions.
 - **`components/image-uploader.tsx`** — client component: picks up to 4 images, validates type/size in the browser (fast feedback), uploads directly to Supabase Storage from the client using a scoped policy, then passes the resulting public URLs to the form's Server Action. Server-side validation still re-checks type/size before the row is written (never trust the client).
-- **`components/message-thread.tsx`** — client component: fetches messages on mount, polls every ~5s while the trade page is open (cleared on unmount), optimistically appends a sent message, and disables the input when the trade is in a terminal state.
+- **`components/trade-chat.tsx`** — client component: receives the trade's initial messages from the server-rendered page, polls every ~5s while the trade is still live (cleared on unmount or once terminal), refetches immediately after a successful send rather than optimistically appending, and disables the input with an explanation once the trade reaches a terminal state.
 - **`components/offer-builder.tsx`** — client component: multi-select of the current user's `available` items to attach as the "offered" side of a new trade.
 
 ## 3. Full Database Schema
@@ -161,7 +161,7 @@ Doing each of these as one DB function/transaction, rather than several separate
 | `/trades`               | own trades (incoming + outgoing)                                                  | —                                                                                   |
 | `/trades/[id]`          | one trade + items + messages                                                      | `acceptTrade`, `declineTrade`, `cancelTrade`, `confirmCompleteTrade`, `sendMessage` |
 | `/trades/new?item=[id]` | requested item + own available items                                              | `createTrade`                                                                       |
-| `/profile`              | own profile                                                                       | `updateProfile`                                                                     |
+| `/profile`              | own profile                                                                       | `updateProfile` — **not yet built** (found while writing `docs/test-plan.md`, Phase 6: the route folder and action are both empty; the nav bar links here regardless, currently a dead link) |
 | `/login`, `/signup`     | —                                                                                 | `login`, `signup`, `logout`                                                         |
 
 ## 5. Server Action Catalog
@@ -180,7 +180,9 @@ Every Server Action follows the same fixed sequence — **auth check → zod par
 | `cancelTrade`                  | session required   | —                                                 | caller is `initiator_id`; trade in `pending`/`accepted_by_responder`       | update `trades.status`                              |
 | `confirmCompleteTrade`         | session required   | —                                                 | caller is `initiator_id`; trade is `accepted_by_responder`                 | RPC `complete_trade`                                |
 | `sendMessage`                  | session required   | body ≤1000 chars (zod)                            | caller is a trade participant; trade not terminal                          | insert `messages`                                   |
-| `updateProfile`                | session required   | username/city (zod)                               | `id = auth.uid()`                                                          | update `profiles`                                   |
+| `updateProfile`                | —                  | —                                                 | —                                                                          | **not yet built** — see note below                  |
+
+**`updateProfile` isn't built yet.** `lib/validation/profile.ts` already exports `profileUpdateSchema`, and `0001_profiles.sql`'s "users can update their own profile" RLS policy already permits it — but no route or Server Action actually consumes it, and `/profile`'s route folder is empty. Discovered while writing `docs/test-plan.md` (Phase 6); the nav bar still links to `/profile` regardless, so that's currently a dead link. Tracked as a known gap, not covered by the current test plan.
 
 ## 6. State Management
 
@@ -189,10 +191,13 @@ Every Server Action follows the same fixed sequence — **auth check → zod par
 
 ## 7. Error Handling Strategy
 
-- **Expected errors** (validation failure, "item no longer available," "not your trade") are returned from Server Actions as a typed `{ error: string }` result and rendered inline near the relevant form/button — not thrown as exceptions, so they don't trigger Next's error boundary for normal user mistakes.
-- **Unexpected errors** (DB unreachable, RLS-denied request the UI shouldn't have allowed, etc.) are thrown, caught by route-level `error.tsx` boundaries, and shown as a generic "something went wrong, try again" screen with a retry action — never a raw stack trace to the user.
+Two different patterns are used, both landing on "show the real message near the relevant control, never a crash screen" — they differ only in *how* the error gets from the Server Action back to the UI, based on how the action is invoked:
+
+- **Form-bound actions** (`signup`, `login`, `createItem`, `updateItem`, `createTrade`) are driven by `useActionState`, so they return a typed `{ error: string }` result that renders inline near the form — the natural fit when there's already a `[state, formAction]` pair and a `<form action={formAction}>`.
+- **Direct-call actions** (`acceptTrade`, `declineTrade`, `cancelTrade`, `confirmCompleteTrade`, `sendMessage`) are called directly from a client component's event handler (not a form submission), so they throw on failure instead — the calling component wraps the call in a `useTransition` + `try/catch` and stores the message in local state to render inline. This wasn't the original plan (see `docs/decisions.md`, "trade action errors shown inline"): these four were first wired as plain `<form action={...}>` submissions, which sent a thrown error straight to the nearest error boundary — a generic crash screen for what were actually expected, well-defined rejections (e.g. `accept_trade()` refusing a second acceptance for an already-committed item). Switched to the direct-call + `try/catch` pattern once that surfaced in testing.
+- **Genuinely unexpected errors** (DB unreachable, a bug that lets a request reach the server that never should have) still fall through to route-level `error.tsx` boundaries — a generic "something went wrong, try again" screen with a retry action, never a raw stack trace. The difference from the point above is intent: the four actions above throw for *expected, meaningful* rejections that deserve a specific message, not just "something broke."
 - **`loading.tsx`** is provided per route segment that does non-trivial data fetching, so navigation always shows a skeleton/spinner instead of a blank screen.
-- Every Server Action's DB call is wrapped so a Postgres error (including an RLS denial) is caught and turned into a safe generic message rather than leaking schema details.
+- Every Server Action's DB call is wrapped so a Postgres error (including an RLS denial) is caught and turned into a safe message rather than leaking schema details — though for the direct-call actions above, the raised message itself (e.g. `accept_trade`'s "already committed to another accepted trade") is often specific and safe enough to show as-is, rather than being generic.
 
 ## 8. Validation Strategy
 

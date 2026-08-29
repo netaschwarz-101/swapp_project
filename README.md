@@ -59,6 +59,9 @@ See `docs/technical-design.md §1` for the full folder layout and the rationale 
 - `npm run format` — Prettier (writes)
 - `npm run format:check` — Prettier (check only, used in CI)
 - `npm run seed` — populate demo users + items (see step 5 above)
+- `npm test` — Vitest unit tests (pure logic, no network — runs anywhere)
+- `npm run test:watch` — Vitest in watch mode
+- `npm run test:e2e` — Playwright E2E tests (needs a running app + real Supabase project, see Testing below)
 
 ## Deployment
 
@@ -66,4 +69,19 @@ Deployed on Vercel, connected to this repo's `main` branch. The same three envir
 
 ## Testing
 
-See `docs/test-plan.md` (added in Phase 6) for the test strategy, and run `npm test` (Vitest) / `npx playwright test` (E2E) once those are in place.
+See `docs/test-plan.md` for the full strategy (per-feature happy path / invalid inputs / permission checks / state-machine violations / edge cases) and `docs/manual-tests.md` for what isn't automated.
+
+**Unit tests** (`tests/unit/`, Vitest) — pure logic only, no network, run anywhere:
+
+```bash
+npm test
+```
+
+**End-to-end tests** (`tests/e2e/`, Playwright) — need a real Supabase project with the migrations applied and demo data seeded (steps 2–5 above), since this exercises real RLS policies and Server Actions, not mocks:
+
+```bash
+npm run seed        # if you haven't already — the specs log in as these demo accounts
+npm run test:e2e    # starts `next dev` itself if it isn't already running
+```
+
+By default the specs use the seeded `maya@swapp.test` / `danny@swapp.test` / `noa@swapp.test` accounts (password `SwappDemo123!`). Override with `SWAPP_TEST_EMAIL_A` / `_B` / `_C` and `SWAPP_TEST_PASSWORD` env vars if you're pointing at different accounts. Each spec creates its own uniquely-titled items at run time, so it's safe to run repeatedly without cleaning up between runs.
