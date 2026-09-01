@@ -42,16 +42,14 @@ test("full trade cycle: offer → accept → confirm complete", async ({
   await pageA.getByRole("link", { name: "Offer a trade" }).click();
   await expect(pageA).toHaveURL(new RegExp(`/trades/new\\?item=${itemBId}`));
 
-  // The "own items" checklist can include other seeded items for this
-  // account too — scope to the <label> that wraps this specific item's
-  // checkbox + title (components/offer-builder.tsx) rather than assuming
-  // there's only one checkbox on the page.
-  await pageA
-    .locator("label")
-    .filter({ hasText: titleA })
-    .getByRole("checkbox")
-    .check();
-  await pageA.getByRole("button", { name: "Send trade offer" }).click();
+  // The "you give" grid can include other seeded items for this account
+  // too. Selection is now a clickable card (components/offer-builder.tsx'
+  // redesign — a real <button aria-pressed> per item, not a <label>-
+  // wrapped checkbox), so the fix is clicking the card by its accessible
+  // name (title text is inside the button) rather than checking a
+  // checkbox that no longer exists in the DOM.
+  await pageA.getByRole("button", { name: titleA }).click();
+  await pageA.getByRole("button", { name: "Send offer" }).click();
 
   // createTrade redirects to /trades/[id]/confirmed on success.
   await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
@@ -130,14 +128,10 @@ test("accepting one offer auto-cancels a competing pending offer for the same it
   ) {
     await page.goto(`/items/${responderItemId}`);
     await page.getByRole("link", { name: "Offer a trade" }).click();
-    // Scope to the specific item's row, same reasoning as the first
-    // test — the account may have other available items too.
-    await page
-      .locator("label")
-      .filter({ hasText: ownItemTitle })
-      .getByRole("checkbox")
-      .check();
-    await page.getByRole("button", { name: "Send trade offer" }).click();
+    // Click the selectable item card by its accessible name, same
+    // reasoning as the first test.
+    await page.getByRole("button", { name: ownItemTitle }).click();
+    await page.getByRole("button", { name: "Send offer" }).click();
     await expect(page).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
     return page.url().match(/\/trades\/([0-9a-f-]+)\/confirmed$/)?.[1];
   }

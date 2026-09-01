@@ -51,8 +51,14 @@ export async function fillItemForm(
   // Upload happens client-side against Supabase Storage before the
   // hidden image_urls input is populated — wait for the thumbnail
   // (an <img> inside the uploader's preview tile) rather than a fixed
-  // timeout.
-  await expect(page.locator('img[alt=""]').first()).toBeVisible();
+  // timeout. Playwright's default assertion timeout (5s) occasionally
+  // isn't enough for a real network upload to Supabase Storage — seen in
+  // practice on the very first request of a run (no warm connection yet)
+  // — so this one gets a longer, explicit budget rather than sharing the
+  // default.
+  await expect(page.locator('img[alt=""]').first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /** Posts a fresh item via the UI and returns its id, parsed from the

@@ -78,12 +78,10 @@ test("a user who isn't a trade participant gets a clean 404, not a leaked row", 
 
   await pageA.goto(`/items/${itemBId}`);
   await pageA.getByRole("link", { name: "Offer a trade" }).click();
-  await pageA
-    .locator("label")
-    .filter({ hasText: ownItemTitle })
-    .getByRole("checkbox")
-    .check();
-  await pageA.getByRole("button", { name: "Send trade offer" }).click();
+  // Selection is a clickable card, not a <label>-wrapped checkbox — see
+  // full-trade-flow.spec.ts for the same fix and why.
+  await pageA.getByRole("button", { name: ownItemTitle }).click();
+  await pageA.getByRole("button", { name: "Send offer" }).click();
   // createTrade redirects to /trades/[id]/confirmed on success.
   await expect(pageA).toHaveURL(/\/trades\/([0-9a-f-]+)\/confirmed$/);
   const tradeId = pageA

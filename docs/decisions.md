@@ -369,3 +369,41 @@ The user's first full E2E run after the trade-pages redesign (Phase 7), against 
 **Verification:** `eslint` clean; `tsc --noEmit -p tsconfig.json` clean; full `next build` (font-stub workaround) compiles all 14 routes; `npm test` (Vitest) — 49/49 passing; `npx playwright test --list` — all 13 tests still enumerate (one now shown as skipped).
 
 **Not yet done:** re-running the full suite. Expected outcome now: 11 passing, 1 skipped (signup), and the two `unauthorized-access.spec.ts` 404 assertions should finally pass for real, now that the actual cause (not a red herring) is fixed.
+
+---
+
+## Phase 7 follow-up #2 — the `loading.tsx` fix confirmed, one sync mistake caught, one flaky timeout hardened (2026-08-29)
+
+Second run of the full suite, again against a production `next start`: 9 passed, 1 skipped, 3 failed — down from 3 unrelated failure causes to a mix of one real process mistake on this agent's part and one flake.
+
+**The `loading.tsx` fix is confirmed working.** "A user cannot edit another user's item" — the exact test used throughout Phase 6 to (wrongly) support the dev-mode-quirk theory — passed for the first time this project against a real `expect(response?.status()).toBe(404)` check. That closes out the investigation from the previous entry for real, not by further inference.
+
+**A real process mistake: two of the checkbox-locator fixes from the previous entry never actually reached the user's disk.** They'd been sent via `SendUserFile` (which posts a downloadable file card into the chat) but the follow-up step that actually writes into the connected project folder (`device_commit_files`) was skipped for those two files — an oversight, not a code issue. The user's local `full-trade-flow.spec.ts` and `unauthorized-access.spec.ts` still had the pre-fix checkbox code, which is exactly what this run's two `getByRole("checkbox")` timeouts show, at the identical line numbers as before. Caught by comparing this run's stack traces against what the fix was supposed to look like, rather than assuming the earlier fix "should" have worked. Re-committed both files, then re-staged them from the user's machine and grepped for the old `getByRole("checkbox")` pattern to confirm zero matches before saying it was actually done this time.
+
+**One genuine flake, hardened rather than ignored.** "Full trade cycle" failed fast (15.6s, not a 60s timeout) inside `fillItemForm`'s wait for the upload preview thumbnail — a plain `expect().toBeVisible()` with Playwright's default 5s budget, racing a real network upload to Supabase Storage. Nothing in the app changed to cause this; it's the first request of a fresh run hitting real network variance. Bumped that one assertion to an explicit 15s timeout (`tests/e2e/helpers.ts`) rather than leaving it sharing Playwright's default, since a slow-but-working upload and a genuinely broken one look identical from a single fast failure — 15s still fails loudly if uploads are actually broken, it just stops mistaking "a bit slow" for "broken."
+
+**Verification:** `eslint` clean; `tsc --noEmit -p tsconfig.json` clean; `npx playwright test --list` — all 13 tests enumerate correctly. This entry's fixes are test-only (no app code touched), so a full `next build`/`npm test` re-run wasn't necessary on top of the previous entry's already-clean one.
+
+**Not yet done:** one more full run. Expected: 12 passing, 1 skipped (signup) — every remaining failure this run had a specific, now-fixed cause, not an open question.
+
+---
+
+## Phase 7 follow-up #3 — one more redesign-copy mismatch, found via screenshot not guesswork (2026-08-29)
+
+Third run: item selection now worked (the previous entry's re-sync held), but all three trade-offer tests then hung for the full 60s on `getByRole("button", { name: "Send trade offer" }).click()`. Pulled the actual screenshot rather than assume — it shows the item correctly selected (tick mark, "1 OF 39 SELECTED") and the submit button rendered as **"Send offer — 1 for 1"**. The offer builder redesign (Phase 7) changed the button's copy from "Send trade offer" to "Send offer — {n} for {m}" per the design spec — a second spot, like the checkbox locator, where the redesign changed the DOM and the E2E tests were never updated to match. `getByRole`'s substring name-matching means "Send trade offer" was never going to match "Send offer — 1 for 1" (different words, not a superset). Fixed all three occurrences (`full-trade-flow.spec.ts` ×2, `unauthorized-access.spec.ts` ×1) to `getByRole("button", { name: "Send offer" })`, which correctly substring-matches regardless of the item count suffix. Grepped both files afterward for any other pre-redesign copy the tests might still reference ("Propose a trade", "You're requesting", "Choose 1 or more") — none found.
+
+**Also learned the sync-verification lesson from the previous entry actually holds up under repetition**: this fix was synced via `SendUserFile` + `device_commit_files` and then independently re-staged from the user's machine and grepped to confirm the new text landed, before saying so — the same discipline that caught the missed commit in follow-up #2, now applied by default rather than only after being burned once.
+
+**Incidental observation, not a bug:** the screenshot shows maya_tlv's "you give" grid at 39 available items — accumulated debris from every earlier failed run's `postItem()` succeeding before a later step failed. Harmless (doesn't affect test correctness, RLS still scopes everything to the owner), but worth a manual cleanup via the Supabase dashboard or `My Items` page at some point before the oral defense, so a screen-share doesn't show 39 near-identical "E2E ..." items.
+
+**Verification:** `eslint` clean; `tsc --noEmit -p tsconfig.json` clean; `npx playwright test --list` — all 13 tests enumerate correctly. Test-only change, no app code touched.
+
+---
+
+## Phase 7 follow-up #4 — clean run: 12 passed, 1 skipped (2026-08-29)
+
+Fourth run against `next build && next start` came back clean: 12 passed, 1 skipped (the signup test, skipped by choice in follow-up #1), 0 unexplained failures. This closes out the E2E debugging that started when the trade-pages redesign (Phase 7) shipped without an actual E2E run to check it against — every failure across the four follow-up runs traced to one of five distinct, confirmed causes, not left as "probably fine": two redesign/test mismatches this agent introduced and then fixed one at a time as each was uncovered (checkbox→card locator, "Send trade offer"→"Send offer" button copy); one genuine app bug found and fixed (`app/loading.tsx` at the app root silently converting every `notFound()` page's HTTP status to 200 via Suspense streaming — not a `next dev` artifact as long assumed in Phase 6, confirmed by testing against production for the first time); one Supabase validation quirk knowingly deferred (`@swapp.test` rejected by the public `signUp()` endpoint, unlike the admin-created seed accounts — test skipped, documented, real signup unaffected); and one plain network flake hardened against (image upload assertion's timeout raised from Playwright's 5s default to 15s).
+
+Notably, the test-participant 404 check (`unauthorized-access.spec.ts:54`) — the one test that never got far enough in three straight runs to actually exercise its own `notFound()` assertion — finally ran that code path in this run (22.5s, no timeout) and passed, giving direct confirmation that the `loading.tsx` fix holds for the trade detail page's `roleOf()` check too, not just the item-edit page's owner check.
+
+**Verification:** the E2E suite itself, run for real against a production build by the user — 12/13 passing, 1 skipped by design. No further action needed on this suite; `eslint`/`tsc`/`next build`/`npm test` were already clean going into this run.
