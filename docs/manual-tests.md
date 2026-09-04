@@ -31,3 +31,9 @@ Things worth checking by hand rather than automating — either because they nee
 
 - [ ] Sign up, actually receive and click the real confirmation email, confirm it lands you logged in.
 - [ ] Try logging in before confirming — see the "Resend confirmation email" option, use it, confirm a new email arrives (subject to Supabase's rate limit).
+
+## Profile (Phase 8)
+
+- [ ] Change your username to one another seeded demo account already uses — rejected with "That username is already taken." (the DB's unique constraint, surfaced as a friendly error, not a crash).
+- [ ] Upload an avatar, save, reload `/profile` — it's still there. Remove it (the "Remove" link), save — falls back to the initials placeholder.
+- [ ] Change your city on `/profile` — your existing posted items keep showing their original city (per the denormalization note in `docs/technical-design.md` §3) until you edit each one individually; a newly-posted item after the change uses the new city.

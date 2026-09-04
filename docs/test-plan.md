@@ -2,7 +2,7 @@
 
 Per assignment §6: for each core feature, the happy path, invalid inputs, permission checks, state-machine violations (where applicable), edge cases, DB integrity, and basic UI checks. This plan is what `tests/unit/` (Vitest) and `tests/e2e/` (Playwright) implement, plus `docs/manual-tests.md` for what doesn't automate well.
 
-Known gap, not covered below: `/profile` and `updateProfile` are documented in `docs/technical-design.md` but were never actually built (empty route folder, no Server Action) — discovered while writing this plan. Excluded here until it exists; tracked as an open item, not a regression from this phase's work.
+`/profile` and `updateProfile` (built in Phase 8, after being flagged here as a gap) are covered by `tests/e2e/profile.spec.ts`: happy path (change username, see it reflected in the nav bar without a navigation, thanks to the Server Action's automatic route refresh) and permission checks (covered by the `/profile` redirect case below, same as every other protected route). Invalid-input and username-uniqueness cases aren't separately automated — `profileUpdateSchema` reuses `signupSchema`'s username rules, already covered by the authentication section below, and the unique-username constraint is exercised manually per `docs/manual-tests.md`.
 
 ## 1. Authentication (signup / login / logout / email confirmation)
 

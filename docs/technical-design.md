@@ -161,7 +161,7 @@ Doing each of these as one DB function/transaction, rather than several separate
 | `/trades`               | own trades (incoming + outgoing)                                                  | —                                                                                   |
 | `/trades/[id]`          | one trade + items + messages                                                      | `acceptTrade`, `declineTrade`, `cancelTrade`, `confirmCompleteTrade`, `sendMessage` |
 | `/trades/new?item=[id]` | requested item + own available items                                              | `createTrade`                                                                       |
-| `/profile`              | own profile                                                                       | `updateProfile` — **not yet built** (found while writing `docs/test-plan.md`, Phase 6: the route folder and action are both empty; the nav bar links here regardless, currently a dead link) |
+| `/profile`              | own profile                                                                       | `updateProfile`                                                                     |
 | `/login`, `/signup`     | —                                                                                 | `login`, `signup`, `logout`                                                         |
 
 ## 5. Server Action Catalog
@@ -180,9 +180,9 @@ Every Server Action follows the same fixed sequence — **auth check → zod par
 | `cancelTrade`                  | session required   | —                                                 | caller is `initiator_id`; trade in `pending`/`accepted_by_responder`       | update `trades.status`                              |
 | `confirmCompleteTrade`         | session required   | —                                                 | caller is `initiator_id`; trade is `accepted_by_responder`                 | RPC `complete_trade`                                |
 | `sendMessage`                  | session required   | body ≤1000 chars (zod)                            | caller is a trade participant; trade not terminal                          | insert `messages`                                   |
-| `updateProfile`                | —                  | —                                                 | —                                                                          | **not yet built** — see note below                  |
+| `updateProfile`                | session required   | username/city/avatar_url (zod)                    | `id = auth.uid()` (RLS + explicit `.eq()`)                                 | update `profiles`                                   |
 
-**`updateProfile` isn't built yet.** `lib/validation/profile.ts` already exports `profileUpdateSchema`, and `0001_profiles.sql`'s "users can update their own profile" RLS policy already permits it — but no route or Server Action actually consumes it, and `/profile`'s route folder is empty. Discovered while writing `docs/test-plan.md` (Phase 6); the nav bar still links to `/profile` regardless, so that's currently a dead link. Tracked as a known gap, not covered by the current test plan.
+**`updateProfile` is built (Phase 8).** Follows the same fixed sequence as every other action: auth check, `profileUpdateSchema` parse, update `profiles` scoped to `auth.uid()`, `revalidatePath("/", "layout")` since the nav bar (root layout) shows the username on every page. A Postgres unique-violation on `profiles.username` (`error.code === "23505"`) is caught and turned into "That username is already taken." rather than a generic failure. The avatar uploader (`components/avatar-uploader.tsx`) reuses the existing `item-images` Storage bucket under an `"<uid>/avatar-<uuid>.ext"` path — its RLS policy only checks the uid prefix, not that the file is attached to an item, so no new bucket or migration was needed.
 
 ## 6. State Management
 
