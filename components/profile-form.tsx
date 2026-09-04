@@ -84,11 +84,6 @@ export function ProfileForm({ defaultValues }: Props) {
           {state.error}
         </p>
       )}
-      {state.info && (
-        <p className="text-success text-sm" role="status">
-          {state.info}
-        </p>
-      )}
 
       <SubmitButton className="w-fit" pendingText="Saving…">
         Save changes

@@ -161,7 +161,8 @@ Doing each of these as one DB function/transaction, rather than several separate
 | `/trades`               | own trades (incoming + outgoing)                                                  | —                                                                                   |
 | `/trades/[id]`          | one trade + items + messages                                                      | `acceptTrade`, `declineTrade`, `cancelTrade`, `confirmCompleteTrade`, `sendMessage` |
 | `/trades/new?item=[id]` | requested item + own available items                                              | `createTrade`                                                                       |
-| `/profile`              | own profile                                                                       | `updateProfile`                                                                     |
+| `/profile`              | own profile (read-only view)                                                      | —                                                                                   |
+| `/profile/edit`         | own profile                                                                       | `updateProfile`                                                                     |
 | `/login`, `/signup`     | —                                                                                 | `login`, `signup`, `logout`                                                         |
 
 ## 5. Server Action Catalog
@@ -182,7 +183,9 @@ Every Server Action follows the same fixed sequence — **auth check → zod par
 | `sendMessage`                  | session required   | body ≤1000 chars (zod)                            | caller is a trade participant; trade not terminal                          | insert `messages`                                   |
 | `updateProfile`                | session required   | username/city/avatar_url (zod)                    | `id = auth.uid()` (RLS + explicit `.eq()`)                                 | update `profiles`                                   |
 
-**`updateProfile` is built (Phase 8).** Follows the same fixed sequence as every other action: auth check, `profileUpdateSchema` parse, update `profiles` scoped to `auth.uid()`, `revalidatePath("/", "layout")` since the nav bar (root layout) shows the username on every page. A Postgres unique-violation on `profiles.username` (`error.code === "23505"`) is caught and turned into "That username is already taken." rather than a generic failure. The avatar uploader (`components/avatar-uploader.tsx`) reuses the existing `item-images` Storage bucket under an `"<uid>/avatar-<uuid>.ext"` path — its RLS policy only checks the uid prefix, not that the file is attached to an item, so no new bucket or migration was needed.
+**`updateProfile` is built (Phase 8).** Follows the same fixed sequence as every other action: auth check, `profileUpdateSchema` parse, update `profiles` scoped to `auth.uid()`, `revalidatePath("/", "layout")` since the nav bar (root layout) shows the username on every page, then `redirect("/profile")` on success — same pattern as `createItem`/`updateItem`, not an inline message. On failure it returns `{ error }` instead, rendered inline on `/profile/edit` (see below). A Postgres unique-violation on `profiles.username` (`error.code === "23505"`) is caught and turned into "That username is already taken." rather than a generic failure. The avatar uploader (`components/avatar-uploader.tsx`) reuses the existing `item-images` Storage bucket under an `"<uid>/avatar-<uuid>.ext"` path — its RLS policy only checks the uid prefix, not that the file is attached to an item, so no new bucket or migration was needed.
+
+**`/profile` vs `/profile/edit` (Phase 8 follow-up).** `/profile` is a read-only view (avatar, username, city, an "Edit profile" button) — editing isn't the default state of opening the page, matching the `/items/[id]` vs `/items/[id]/edit` split already used for items rather than showing an editable form immediately.
 
 ## 6. State Management
 

@@ -34,6 +34,7 @@ Things worth checking by hand rather than automating — either because they nee
 
 ## Profile (Phase 8)
 
+- [ ] Open `/profile` — it's a read-only view (avatar, username, city), not an editable form. Click "Edit profile" to reach `/profile/edit`.
 - [ ] Change your username to one another seeded demo account already uses — rejected with "That username is already taken." (the DB's unique constraint, surfaced as a friendly error, not a crash).
-- [ ] Upload an avatar, save, reload `/profile` — it's still there. Remove it (the "Remove" link), save — falls back to the initials placeholder.
-- [ ] Change your city on `/profile` — your existing posted items keep showing their original city (per the denormalization note in `docs/technical-design.md` §3) until you edit each one individually; a newly-posted item after the change uses the new city.
+- [ ] Upload an avatar on `/profile/edit`, save — back on `/profile`, it's showing. Edit again, remove it (the "Remove" link), save — falls back to the initials placeholder.
+- [ ] Change your city on `/profile/edit` — your existing posted items keep showing their original city (per the denormalization note in `docs/technical-design.md` §3) until you edit each one individually; a newly-posted item after the change uses the new city.

@@ -435,3 +435,29 @@ Notably, the test-participant 404 check (`unauthorized-access.spec.ts:54`) — t
 **`npm run cleanup:test-items` run by the user** to clear the accumulated `"E2E ..."` items causing broken/black-screen thumbnails in the feed. Run directly in their own Terminal, not through the device bridge (per the previous entry's esbuild platform mismatch) — the script's own console output wasn't captured here, so its exact before/after counts aren't logged, but the user confirmed the black-screen items are gone from the feed. If anything about the cleanup looks off later (an item that shouldn't have been swept up, a leftover storage file), the script is safe to re-run and re-read (`scripts/cleanup-test-items.ts`).
 
 **Verification:** the E2E suite, run for real by the user — 13/14 passing, 1 skipped by design (unchanged signup-domain skip from Phase 7). No further action needed on this suite.
+
+---
+
+## Phase 8 follow-up #2 — `/profile` split into a read-only view and `/profile/edit`, matching the items pattern (2026-09-04)
+
+**Problem, requested directly:** opening `/profile` landed straight on the editable form — no plain "here's your profile" view, no explicit choice to start editing.
+
+**Fix:** split it the same way items already are (`/items/[id]` view vs `/items/[id]/edit` edit):
+
+- `/profile` (`app/(protected)/profile/page.tsx`, rewritten) is now read-only: avatar (or initials fallback, reusing the same circle styling as `AvatarUploader`), username, city, and an "Edit profile" button linking to `/profile/edit`. No form, no Server Action on this route.
+- `/profile/edit` (new `app/(protected)/profile/edit/page.tsx`) holds the `ProfileForm` that used to live at `/profile` — same "← Back to profile" button pattern as `/trades/new`'s "← Back to item". Already covered by `proxy.ts`'s protected-route check (`/profile` prefix matches both).
+- `actions/profile.ts`'s `updateProfile` now redirects to `/profile` on success (`revalidatePath("/", "layout")` then `redirect("/profile")`) instead of returning an inline "Profile updated." message on the same page — same pattern as `createItem`/`updateItem`, and it's what actually gets the user back to the view page. `ProfileActionState` dropped its now-unused `info` field; `components/profile-form.tsx` dropped the info-message JSX (dead code once redirect always fires on success).
+- `tests/e2e/profile.spec.ts` updated for the new flow: open `/profile`, confirm it shows the current username read-only, follow "Edit profile" to `/profile/edit`, change the username, confirm the redirect back to `/profile` and the new value showing there and in the nav bar, then repeat in reverse to restore the original username.
+- `docs/technical-design.md` §4 route table split into two rows (`/profile` reads-only, `/profile/edit` writes via `updateProfile`); §5's `updateProfile` writeup updated to describe the redirect instead of the inline message it no longer does. `docs/test-plan.md` and `docs/manual-tests.md` updated to reference the new two-page flow.
+
+**Verification:** `eslint .` clean; `tsc --noEmit -p tsconfig.json` clean; `next build` (font-stubbed, `app/layout.tsx` restored and diff-confirmed after) compiled both `/profile` and `/profile/edit` as separate routes (14 routes total, was 13); `npx vitest run` — 49/49 passed, unchanged; `npx playwright test --list` — still 14 tests across 5 files (the one profile test, updated in place, not added to). Not yet run for real against a production build with these changes — that's the next thing needed from the user, same as every other change this project has needed a real run to confirm.
+
+---
+
+## Phase 8 follow-up #3 — two real profile.spec.ts failures, one a stale server, one a genuine test bug (2026-09-04)
+
+**First run: "waiting for getByRole('link', { name: 'Edit profile' })" timed out at 60s.** The screenshot Playwright saved showed the *old* combined form rendered directly on `/profile` — the pre-split heading "Update your username, city, and avatar." with the form fields right there, no "Edit profile" button anywhere, i.e. exactly the page from before this session's follow-up #2 change. The files on disk were already confirmed correct (staged back and grepped right after syncing), so this wasn't a code bug — `next start` serves whatever was compiled into `.next` at the last `next build`, and the server from the previous test run was still up, never rebuilt after the new files landed. Fix was operational, not code: stop the server, `npm run build && npm run start` again.
+
+**Second run, against the rebuilt server: a real test bug, not a flake.** `expect(page.getByText(originalUsername)).toBeVisible()` failed with a Playwright strict-mode violation — "resolved to 2 elements": the nav bar's `<a href="/profile">maya_tlv</a>` (outside `<main>`, in the root layout) and the view page's own `<p class="text-lg font-semibold">maya_tlv</p>` (inside `<main>`). Both are visible on `/profile` at once now that the view page shows the username as plain text next to the nav bar also showing it — an ambiguity that didn't exist in the single-page version this test was originally written against. Fixed by scoping every page-content username check to `page.getByRole("main")` (`mainContent.getByText(...)`), leaving the existing `navProfileLink` locator (`nav a[href="/profile"]`) as the separate, already-unambiguous check for the nav bar's copy.
+
+**Verification:** `eslint .` clean; `tsc --noEmit -p tsconfig.json` clean; `npx playwright test --list` — still enumerates correctly. Third run, against the rebuilt server with this fix: 13 passed, 1 skipped, 0 failed — `profile.spec.ts` passed in 6.4s. Closes out the `/profile` view/edit split for this phase; both real failures in this follow-up had confirmed, distinct causes (a stale build, then a genuinely ambiguous locator), neither left unexplained.

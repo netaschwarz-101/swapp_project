@@ -1,12 +1,12 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { profileUpdateSchema } from "@/lib/validation/profile";
 
 export type ProfileActionState = {
   error?: string;
-  info?: string;
 };
 
 export async function updateProfile(
@@ -56,5 +56,5 @@ export async function updateProfile(
   // 5. revalidate — the nav bar (every page, via the root layout) shows
   // the username, and /profile itself needs the fresh values.
   revalidatePath("/", "layout");
-  return { info: "Profile updated." };
+  redirect("/profile");
 }

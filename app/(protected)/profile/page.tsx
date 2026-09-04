@@ -1,5 +1,8 @@
+import Image from "next/image";
+import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { ProfileForm } from "@/components/profile-form";
+import { Button } from "@/components/ui/button";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -29,13 +32,37 @@ export default async function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Profile</h1>
-        <p className="text-muted-foreground text-sm">
-          Update your username, city, and avatar.
-        </p>
+        <Button asChild size="sm">
+          <Link href="/profile/edit">
+            <Pencil className="size-4" />
+            Edit profile
+          </Link>
+        </Button>
       </div>
-      <ProfileForm defaultValues={profile} />
+
+      <div className="flex items-center gap-4">
+        <div className="bg-muted relative size-20 shrink-0 overflow-hidden rounded-full border">
+          {profile.avatar_url ? (
+            <Image
+              src={profile.avatar_url}
+              alt=""
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          ) : (
+            <span className="text-muted-foreground flex size-full items-center justify-center text-lg font-medium">
+              {profile.username.slice(0, 2).toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div>
+          <p className="text-lg font-semibold">{profile.username}</p>
+          <p className="text-muted-foreground text-sm">{profile.city}</p>
+        </div>
+      </div>
     </div>
   );
 }
