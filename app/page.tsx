@@ -51,9 +51,8 @@ export default async function Home() {
           Trade what you have for what you want.
         </h1>
         <p className="text-muted-foreground max-w-lg">
-          Swapp is a local barter marketplace — no prices, no payments. Post
-          items you don&rsquo;t need, browse what others in your city are
-          offering, and propose a trade.
+          Swapp is a cash-free marketplace. List what you don&rsquo;t need,
+          find what you do, and trade locally with zero payments.
         </p>
         {!user && (
           <div className="flex gap-3">
