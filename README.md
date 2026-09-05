@@ -37,7 +37,7 @@ Next.js 16 (App Router, Server Components + Server Actions) · TypeScript (stric
    npm run seed
    ```
 
-   Creates 5 demo users and ~40 items across cities/categories, so the feed and search have something real to show. Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see step 3). Must be run from a machine with normal internet access, not this repo's sandboxed dev container if you're using one — the script talks directly to your Supabase project over the network. Safe to re-run; it cleans up the demo users it created last time first. Demo login: any of the printed `@swapp.test` emails, password `SwappDemo123!`.
+   Creates 5 demo users and ~40 items across cities/categories, so the feed and search have something real to show. Requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see step 3) and a normal network connection to Supabase. Safe to re-run — it cleans up the demo users from the last run first. Demo login: any of the printed `@swapp.test` emails, password `SwappDemo123!`.
 
 6. **Run the app**
 

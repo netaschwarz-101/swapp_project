@@ -1,40 +1,40 @@
 # Manual Test Checklist
 
-Things worth checking by hand rather than automating — either because they need a real file picker / real visual judgment, or because the cost of automating them properly (a second image fixture library, cross-browser visual diffing) isn't worth it for a project this size. Run through this before the final submission and after any change touching these areas. Per `docs/test-plan.md`, everything else has an automated test.
+Things worth checking by hand instead of automating — they need a real file picker or real visual judgment, or aren't worth the setup cost to automate at this project's size. Run through this before final submission and after any change touching these areas. Everything else has an automated test (`docs/test-plan.md`).
 
 ## Image upload
 
-- [ ] Upload 1 photo when posting an item — appears as a thumbnail immediately, item saves with it.
-- [ ] Upload the maximum (4) photos — the "Add photo" tile disappears once the 4th is added.
-- [ ] Try uploading a 5th photo (select 5 files at once) — only the first 4 (up to the remaining slots) are accepted, with the "Only 4 photos allowed" message.
-- [ ] Try uploading a non-image file (e.g. a `.pdf`) — rejected client-side with "Only JPEG, PNG, or WebP images are allowed."
-- [ ] Try uploading an image over 5MB — rejected client-side with "Each image must be 5MB or smaller."
-- [ ] Remove a photo (the × button) before saving — it's gone from the preview and not submitted.
-- [ ] Edit an existing item and add/remove photos — the change persists after saving.
-- [ ] Open the browser's network tab during upload and confirm the request goes to Supabase Storage's `item-images` bucket, not through a Server Action (client-side direct upload, per `docs/technical-design.md` §2).
+- [x] Upload 1 photo when posting an item — appears as a thumbnail immediately, item saves with it.
+- [x] Upload the maximum (4) photos — the "Add photo" tile disappears after the 4th.
+- [x] Select 5 photos at once — only 4 are accepted, with an "Only 4 photos allowed" message.
+- [x] Try uploading a non-image file (e.g. a `.pdf`) — rejected with "Only JPEG, PNG, or WebP images are allowed."
+- [x] Try uploading an image over 5MB — rejected with "Each image must be 5MB or smaller."
+- [x] Remove a photo before saving — it's gone from the preview and not submitted.
+- [x] Edit an existing item's photos — the change persists after saving.
+- [x] Check the browser's network tab during upload — the request goes directly to Supabase Storage, not through a Server Action.
 
 ## Visual / responsive checks
 
-- [ ] Resize the browser down to a phone width (~375px) on: `/`, `/search`, `/my-items`, `/trades`, `/trades/[id]`, an item detail page, the item form. Nothing overflows horizontally; the trade detail page's offered/requested panels stack to one column instead of squeezing side by side.
-- [ ] Light and dark mode (the theme toggle) on every page above — text stays readable, no invisible-text-on-same-color-background spots.
-- [ ] Long content doesn't break layout: a very long item title (near 80 chars), a long username, a long chat message (near 1000 chars).
-- [ ] Empty states render correctly and aren't just blank: a city with zero items in the feed, a search with zero results, a fresh account's `/my-items` and `/trades`, a new trade's empty chat thread.
-- [ ] Status badges are visually distinct at a glance: item "Traded"/"Deleted", trade "Pending"/"Accepted"/"Completed"/"Declined"/"Cancelled" (`components/trade-status-badge.tsx`).
-- [ ] The trade detail page's directional arrow (offered → requested) renders correctly in both the stacked (mobile) and side-by-side (desktop) layouts.
+- [x] Resize to phone width (~375px) on `/`, `/search`, `/my-items`, `/trades`, `/trades/[id]`, an item page, and the item form — nothing overflows, and the trade detail page's panels stack to one column.
+- [x] Light and dark mode on every page above — text stays readable everywhere.
+- [x] Long content doesn't break layout: a long item title, a long username, a long chat message.
+- [x] Empty states look intentional, not blank: an empty city feed, a search with no results, a fresh account's `/my-items`/`/trades`, a new trade's empty chat.
+- [x] Status badges are visually distinct at a glance (items and trades).
+- [x] The trade detail page's offered → requested arrow renders correctly both stacked and side-by-side.
 
-## Chat polling (Phase 5)
+## Chat polling
 
-- [ ] Open the same trade in two different browsers (or a normal window + incognito window) logged in as each participant. Send a message from one side — confirm it appears on the other side within ~5 seconds without a manual refresh.
-- [ ] Confirm the message input disables with "This trade is no longer active" once a trade reaches a terminal status (test with a declined or completed trade).
+- [x] Open the same trade in two sessions (e.g. a normal window + incognito), logged in as each participant. A message sent from one side appears on the other within ~5 seconds, with no manual refresh.
+- [x] The message input disables with "This trade is no longer active" on a declined or completed trade.
 
 ## Auth edge cases (hard to automate without a mailbox)
 
-- [ ] Sign up, actually receive and click the real confirmation email, confirm it lands you logged in.
-- [ ] Try logging in before confirming — see the "Resend confirmation email" option, use it, confirm a new email arrives (subject to Supabase's rate limit).
+- [x] Sign up with a real email, receive and click the confirmation link, land logged in. Note: some email providers pre-fetch links for safety scanning, which can consume the one-time confirmation code before you click it yourself — this shows as "That confirmation link is invalid or expired" even though confirmation already succeeded. If you see that, just log in directly; if it works, the account was confirmed. Confirmed on this project (2026-09-05).
+- [ ] Try logging in before confirming — see "Resend confirmation email," use it, get a new email.
 
-## Profile (Phase 8)
+## Profile
 
-- [ ] Open `/profile` — it's a read-only view (avatar, username, city), not an editable form. Click "Edit profile" to reach `/profile/edit`.
-- [ ] Change your username to one another seeded demo account already uses — rejected with "That username is already taken." (the DB's unique constraint, surfaced as a friendly error, not a crash).
-- [ ] Upload an avatar on `/profile/edit`, save — back on `/profile`, it's showing. Edit again, remove it (the "Remove" link), save — falls back to the initials placeholder.
-- [ ] Change your city on `/profile/edit` — your existing posted items keep showing their original city (per the denormalization note in `docs/technical-design.md` §3) until you edit each one individually; a newly-posted item after the change uses the new city.
+- [x] `/profile` is a read-only view (avatar, username, city); "Edit profile" reaches `/profile/edit`.
+- [x] Change your username to one another demo account already uses — rejected with "That username is already taken."
+- [x] Upload an avatar, save, confirm it shows; remove it — falls back to the initials placeholder.
+- [x] Change your city — existing posted items keep their old city until edited individually; a newly-posted item uses the new one.
